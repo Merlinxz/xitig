@@ -51,7 +51,7 @@
                 <input type="number" class="form-control" id="intervalInput" min="1" value="5" />
               </div>
               <div class="form-check mb-3">
-                <input class="form-check-input" type="checkbox" value="" id="soundToggle" />
+                <input class="form-check-input" type="checkbox" id="soundToggle" />
                 <label class="form-check-label" for="soundToggle">
                   เปิดเสียงแจ้งเตือน
                 </label>
@@ -63,12 +63,19 @@
       </div>
     </div>
 
+    <!-- Permission Info -->
+    <div class="mt-4 p-3 border rounded bg-white">
+      <h5>สถานะสิทธิ์แจ้งเตือน:</h5>
+      <p id="permStatus" class="mb-2">กำลังตรวจสอบ...</p>
+      <button id="requestPermBtn" class="btn btn-outline-primary btn-sm">ขอสิทธิ์ใหม่</button>
+    </div>
+
   </div>
 
   <!-- Bootstrap JS Bundle -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/js/bootstrap.bundle.min.js"></script>
 
-  <!-- เสียงแจ้งเตือน (ตัวอย่าง) -->
+  <!-- เสียงแจ้งเตือน -->
   <audio id="notifSound" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>
 
   <script>
@@ -80,10 +87,12 @@
     const soundToggle = document.getElementById('soundToggle');
     const notifSound = document.getElementById('notifSound');
     const settingsForm = document.getElementById('settingsForm');
+    const permStatus = document.getElementById('permStatus');
+    const requestPermBtn = document.getElementById('requestPermBtn');
 
     let notificationInterval = null;
     let notifMessage = messageInput.value;
-    let notifInterval = Number(intervalInput.value) * 1000; // ms
+    let notifInterval = Number(intervalInput.value) * 1000;
     let playSound = false;
 
     function updateStatus(msg, color = 'black') {
@@ -91,12 +100,25 @@
       statusDiv.style.color = color;
     }
 
-    function notifyMe() {
+    function updatePermissionStatus() {
       if (!("Notification" in window)) {
-        updateStatus('เบราว์เซอร์ไม่รองรับ Notifications', 'red');
+        permStatus.textContent = "เบราว์เซอร์ไม่รองรับ Notifications API";
+        permStatus.style.color = "red";
+        requestPermBtn.disabled = true;
         return;
       }
+      permStatus.textContent = Notification.permission;
+      permStatus.style.color = Notification.permission === "granted" ? "green" :
+                               Notification.permission === "denied" ? "red" : "orange";
+    }
 
+    function requestPermission() {
+      Notification.requestPermission().then(() => {
+        updatePermissionStatus();
+      });
+    }
+
+    function notifyMe() {
       if (Notification.permission === "granted") {
         new Notification("แจ้งเตือนซ้ำ ๆ", {
           body: notifMessage,
@@ -106,16 +128,6 @@
           notifSound.currentTime = 0;
           notifSound.play();
         }
-      } else if (Notification.permission !== "denied") {
-        Notification.requestPermission().then(permission => {
-          if (permission === "granted") {
-            notifyMe();
-          } else {
-            updateStatus('ไม่ได้รับอนุญาตแจ้งเตือน', 'red');
-          }
-        });
-      } else {
-        updateStatus('คุณปฏิเสธการแจ้งเตือน', 'red');
       }
     }
 
@@ -127,17 +139,7 @@
         stopBtn.disabled = false;
         updateStatus('แจ้งเตือนกำลังทำงาน...', 'green');
       } else {
-        Notification.requestPermission().then(permission => {
-          if (permission === "granted") {
-            notifyMe();
-            notificationInterval = setInterval(notifyMe, notifInterval);
-            startBtn.disabled = true;
-            stopBtn.disabled = false;
-            updateStatus('แจ้งเตือนกำลังทำงาน...', 'green');
-          } else {
-            updateStatus('ไม่ได้รับอนุญาตแจ้งเตือน', 'red');
-          }
-        });
+        updateStatus('ยังไม่ได้อนุญาตให้แจ้งเตือน', 'red');
       }
     });
 
@@ -151,22 +153,30 @@
 
     settingsForm.addEventListener('submit', e => {
       e.preventDefault();
-
-      // ดึงค่าจากฟอร์ม
       notifMessage = messageInput.value.trim() || "แจ้งเตือนซ้ำ ๆ";
-      let val = Number(intervalInput.value);
-      if (val < 1) val = 1;
-      notifInterval = val * 1000;
+      notifInterval = Math.max(1, Number(intervalInput.value)) * 1000;
       playSound = soundToggle.checked;
-
       updateStatus('บันทึกการตั้งค่าแล้ว', 'blue');
 
-      // ถ้าแจ้งเตือนกำลังทำงาน ให้รีสตาร์ท interval ด้วยค่าใหม่
       if (notificationInterval) {
         clearInterval(notificationInterval);
         notificationInterval = setInterval(notifyMe, notifInterval);
       }
     });
+
+    requestPermBtn.addEventListener('click', requestPermission);
+
+    // เรียกเมื่อโหลดหน้า
+    window.addEventListener('load', () => {
+      if ("Notification" in window && Notification.permission === "default") {
+        requestPermission();
+      } else {
+        updatePermissionStatus();
+      }
+    });
+
+    // อัปเดตสถานะเมื่อมีการเปลี่ยนสิทธิ์
+    document.addEventListener("visibilitychange", updatePermissionStatus);
   </script>
 
 </body>
