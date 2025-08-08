@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ระบบแจ้งเตือนพร้อมตั้งค่า</title>
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <!-- Kanit Font -->
+  <link href="https://fonts.googleapis.com/css2?family=Kanit&display=swap" rel="stylesheet" />
+  <style>
+    body {
+      font-family: 'Kanit', sans-serif;
+      padding: 2rem;
+      background-color: #f8f9fa;
+    }
+    .form-label {
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <h1 class="mb-4 text-center">ระบบแจ้งเตือนพร้อมตั้งค่า</h1>
+
+    <div class="text-center mb-4">
+      <button id="startBtn" class="btn btn-primary me-2">เริ่มแจ้งเตือน</button>
+      <button id="stopBtn" class="btn btn-danger" disabled>หยุดแจ้งเตือน</button>
+    </div>
+
+    <div id="status" class="mb-4 text-center"></div>
+
+    <!-- Settings Panel -->
+    <div class="accordion" id="settingsAccordion">
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="headingSettings">
+          <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseSettings" aria-expanded="false" aria-controls="collapseSettings">
+            ตั้งค่าแจ้งเตือน
+          </button>
+        </h2>
+        <div id="collapseSettings" class="accordion-collapse collapse" aria-labelledby="headingSettings" data-bs-parent="#settingsAccordion">
+          <div class="accordion-body">
+            <form id="settingsForm">
+              <div class="mb-3">
+                <label for="messageInput" class="form-label">ข้อความแจ้งเตือน</label>
+                <input type="text" class="form-control" id="messageInput" value="นี่คือการแจ้งเตือนที่ส่งทุก 5 วินาที" />
+              </div>
+              <div class="mb-3">
+                <label for="intervalInput" class="form-label">ความถี่แจ้งเตือน (วินาที)</label>
+                <input type="number" class="form-control" id="intervalInput" min="1" value="5" />
+              </div>
+              <div class="form-check mb-3">
+                <input class="form-check-input" type="checkbox" value="" id="soundToggle" />
+                <label class="form-check-label" for="soundToggle">
+                  เปิดเสียงแจ้งเตือน
+                </label>
+              </div>
+              <button type="submit" class="btn btn-success">บันทึกการตั้งค่า</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Bootstrap JS Bundle -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/js/bootstrap.bundle.min.js"></script>
+
+  <!-- เสียงแจ้งเตือน (ตัวอย่าง) -->
+  <audio id="notifSound" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>
+
+  <script>
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const statusDiv = document.getElementById('status');
+    const messageInput = document.getElementById('messageInput');
+    const intervalInput = document.getElementById('intervalInput');
+    const soundToggle = document.getElementById('soundToggle');
+    const notifSound = document.getElementById('notifSound');
+    const settingsForm = document.getElementById('settingsForm');
+
+    let notificationInterval = null;
+    let notifMessage = messageInput.value;
+    let notifInterval = Number(intervalInput.value) * 1000; // ms
+    let playSound = false;
+
+    function updateStatus(msg, color = 'black') {
+      statusDiv.textContent = msg;
+      statusDiv.style.color = color;
+    }
+
+    function notifyMe() {
+      if (!("Notification" in window)) {
+        updateStatus('เบราว์เซอร์ไม่รองรับ Notifications', 'red');
+        return;
+      }
+
+      if (Notification.permission === "granted") {
+        new Notification("แจ้งเตือนซ้ำ ๆ", {
+          body: notifMessage,
+          icon: "https://cdn-icons-png.flaticon.com/512/1827/1827504.png"
+        });
+        if (playSound) {
+          notifSound.currentTime = 0;
+          notifSound.play();
+        }
+      } else if (Notification.permission !== "denied") {
+        Notification.requestPermission().then(permission => {
+          if (permission === "granted") {
+            notifyMe();
+          } else {
+            updateStatus('ไม่ได้รับอนุญาตแจ้งเตือน', 'red');
+          }
+        });
+      } else {
+        updateStatus('คุณปฏิเสธการแจ้งเตือน', 'red');
+      }
+    }
+
+    startBtn.addEventListener('click', () => {
+      if (Notification.permission === "granted") {
+        notifyMe();
+        notificationInterval = setInterval(notifyMe, notifInterval);
+        startBtn.disabled = true;
+        stopBtn.disabled = false;
+        updateStatus('แจ้งเตือนกำลังทำงาน...', 'green');
+      } else {
+        Notification.requestPermission().then(permission => {
+          if (permission === "granted") {
+            notifyMe();
+            notificationInterval = setInterval(notifyMe, notifInterval);
+            startBtn.disabled = true;
+            stopBtn.disabled = false;
+            updateStatus('แจ้งเตือนกำลังทำงาน...', 'green');
+          } else {
+            updateStatus('ไม่ได้รับอนุญาตแจ้งเตือน', 'red');
+          }
+        });
+      }
+    });
+
+    stopBtn.addEventListener('click', () => {
+      clearInterval(notificationInterval);
+      notificationInterval = null;
+      startBtn.disabled = false;
+      stopBtn.disabled = true;
+      updateStatus('หยุดแจ้งเตือนแล้ว', 'black');
+    });
+
+    settingsForm.addEventListener('submit', e => {
+      e.preventDefault();
+
+      // ดึงค่าจากฟอร์ม
+      notifMessage = messageInput.value.trim() || "แจ้งเตือนซ้ำ ๆ";
+      let val = Number(intervalInput.value);
+      if (val < 1) val = 1;
+      notifInterval = val * 1000;
+      playSound = soundToggle.checked;
+
+      updateStatus('บันทึกการตั้งค่าแล้ว', 'blue');
+
+      // ถ้าแจ้งเตือนกำลังทำงาน ให้รีสตาร์ท interval ด้วยค่าใหม่
+      if (notificationInterval) {
+        clearInterval(notificationInterval);
+        notificationInterval = setInterval(notifyMe, notifInterval);
+      }
+    });
+  </script>
+
+</body>
+</html>
